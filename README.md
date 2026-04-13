@@ -28,3 +28,20 @@ The system is divided into three main components:
 Ensure you have the `websockets` library installed:
 ```bash
 pip install websockets
+Navigate to the backend folder and start the engine:
+
+Bash
+python engine.py
+2. Setup Frontend
+Navigate to the frontend folder.
+
+Open index.html in any modern web browser (Chrome/Edge recommended).
+
+The dashboard will automatically connect to the Python server and begin displaying live ticker updates for AAPL, GOOGL, MSFT, TCS, REL, etc.
+
+📊 Key Features
+Zero-Latency Feel: Uses WebSockets instead of HTTP polling for instant data updates.
+
+Fault Tolerance: Implements "poison pills" for graceful process shutdown.
+
+Memory Efficient: Uses fixed-size deques to prevent memory leaks during long-running sessions.
