@@ -1,49 +1,46 @@
-# StreamTrade Engine 📈
+# 📈 StreamTrade Engine
 
-A high-performance market data ingestion engine and real-time dashboard built to simulate institutional trading environments. 
+A high-performance, real-time trading data ingestion and analysis engine. 
 
-This project demonstrates the use of multi-process data pipelines in Python to handle high-frequency data streams, coupled with a minimalist React frontend for real-time visualization.
+This project utilizes Python's `multiprocessing` architecture to independently fetch live market data from a Google Sheet, calculate quantitative metrics (SMA, VWAP), and stream live buy/sell signals to a frontend dashboard via WebSockets.
 
+## 🚀 Architecture overview
 
-
-## 🏗️ Architecture
-The system is divided into three main components:
-* **The Firehose (Producer):** A dedicated process that generates thousands of mock trade records.
-* **The Analyzer (Consumer):** A separate process that calculates rolling Simple Moving Averages (SMA) and Volume Weighted Average Price (VWAP) using high-speed `itertools` logic.
-* **The Broadcaster:** An asynchronous WebSocket server that streams live signals to the frontend at `ws://localhost:8765`.
+The backend is built with three concurrent processes to ensure zero-blocking performance:
+1. **The Worker:** Polls a Google Sheet API for live market data, dynamically detecting new tickers and managing state to avoid duplicate ingestion.
+2. **The Analyzer:** Consumes raw data, maintains a moving queue for individual stocks, and calculates real-time Simple Moving Averages (SMA) and Volume Weighted Average Prices (VWAP).
+3. **The Broadcaster:** An asynchronous WebSocket server that streams processed signals to connected clients instantly.
 
 ## 🛠️ Tech Stack
-* **Backend:** Python 3.x
-    * `multiprocessing` for parallel execution.
-    * `asyncio` & `websockets` for real-time data streaming.
-    * `collections.deque` for efficient rolling window memory.
-* **Frontend:** React (via CDN) & Tailwind CSS
-    * Minimalist dark-mode UI.
-    * Monospaced typography for stable data rendering.
-    * Pulse animations for live update cues.
+* **Backend:** Python (Multiprocessing, Asyncio)
+* **Data Ingestion:** Google Sheets API (`gspread`, `oauth2client`)
+* **Real-time Streaming:** WebSockets
+* **Frontend:** HTML, Vanilla JS, Tailwind CSS
 
-## 🚀 How to Run Locally
+## ⚙️ Setup & Installation
 
-### 1. Setup Backend
-Ensure you have the `websockets` library installed:
+**1. Clone the repository**
 ```bash
-pip install websockets
-Navigate to the backend folder and start the engine:
+git clone [https://github.com/YourUsername/StreamTrade_Engine.git](https://github.com/YourUsername/StreamTrade_Engine.git)
+cd StreamTrade_Engine
+2. Install Dependencies
 
 Bash
-python engine.py
-2. Setup Frontend
-Navigate to the frontend folder.
+pip install gspread oauth2client websockets
+3. Google Sheets Authentication
 
-Open index.html in any modern web browser (Chrome/Edge recommended).
+Create a Google Cloud Service Account and download the JSON key.
 
-The dashboard will automatically connect to the Python server and begin displaying live ticker updates for AAPL, GOOGL, MSFT, TCS, REL, etc.
+Rename the file to service_account.json and place it in the backend/ directory.
 
-📊 Key Features
-Zero-Latency Feel: Uses WebSockets instead of HTTP polling for instant data updates.
+Ensure your .gitignore is active so this file is never pushed to public repositories.
 
-Fault Tolerance: Implements "poison pills" for graceful process shutdown.
+4. Google Sheet Format
+Your Google Sheet must include the following headers in Row 1:
+Stock | Tickers | Current Price | Volume
 
-Memory Efficient: Uses fixed-size deques to prevent memory leaks during long-running sessions.
+5. Boot the Engine
 
-Developed as a deep dive into Python's multiprocessing capabilities and real-time systems.
+Bash
+python backend/engine.py
+Then, open frontend/index.html in your browser to view the live dashboard.

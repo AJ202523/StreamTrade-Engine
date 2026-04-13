@@ -1,27 +1,14 @@
-# --- OS Junk Files (Catches Mac and Windows hidden files) ---
-**/.DS_Store
-**/Thumbs.db
+# Security: Google API Credentials (CRITICAL)
+service_account.json
+backend/service_account.json
+*.json
 
-# --- Python Backend Ignores ---
-# The ** tells Git to look inside ALL subfolders (like your backend folder)
-**/__pycache__/
-**/*.pyc
-**/*.pyo
-**/*.pyd
+# Python caches and artifacts
+__pycache__/
+*.py[cod]
+*$py.class
 
-# Virtual Environments (If you build one in the future)
+# Virtual Environments
 venv/
 env/
-.venv/
-
-# --- Security ---
-# NEVER upload API keys or passwords. 
-# If you ever create a .env file to hold passwords, this line protects it.
-**/.env
-
-# --- Frontend Ignores ---
-# You are using CDNs right now, but if you ever upgrade to Node.js/Vite,
-# this will stop Git from uploading the massive node_modules folder.
-**/node_modules/
-**/dist/
-**/build/
+.env
