@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>StreamTrade Dashboard</title>
+  <!-- Tailwind CSS Play CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- React & ReactDOM -->
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  <!-- Babel -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <!-- Google Fonts: Inter and JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            dark: '#0a0a0a',
+            panel: '#121212',
+            textMain: '#ececec',
+            textMuted: '#888888',
+            accent: '#00ff88',
+          },
+          keyframes: {
+            pulseGreen: {
+              '0%': { borderColor: '#00ff88', backgroundColor: 'rgba(0, 255, 136, 0.05)' },
+              '100%': { borderColor: '#333333', backgroundColor: 'transparent' },
+            }
+          },
+          animation: {
+            'flash-update': 'pulseGreen 0.6s ease-out',
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      background-color: #0a0a0a;
+      color: #ececec;
+      margin: 0;
+      padding: 0;
+    }
+    
+    /* Scrollbar for terminal feed */
+    .terminal-scroll::-webkit-scrollbar {
+      width: 6px;
+    }
+    .terminal-scroll::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .terminal-scroll::-webkit-scrollbar-thumb {
+      background-color: #333;
+      border-radius: 10px;
+    }
+    
+    /* Hide general scrollbar */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none; /* IE and Edge */
+      scrollbar-width: none; /* Firefox */
+    }
+  </style>
+</head>
+<body class="font-sans antialiased h-screen overflow-hidden flex flex-col selection:bg-accent selection:text-black">
+  <div id="root" class="flex-grow flex flex-col h-full"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    const TICKERS = ['AAPL', 'GOOGL', 'MSFT', 'AMZN', 'TSLA', 'TCS', 'REL'];
+
+    // Hook to fetch previous value for animation tracking
+    function usePrevious(value) {
+      const ref = useRef();
+      useEffect(() => {
+        ref.current = value;
+      });
+      return ref.current;
+    }
+
+    const TickerCard = ({ ticker, data }) => {
+      const [flash, setFlash] = useState(false);
+      const flashTimeout = useRef(null);
+      const prevData = usePrevious(data);
+
+      useEffect(() => {
+        // Trigger flash if data updates
+        if (data && prevData && (data.volume !== prevData.volume || data.sma !== prevData.sma || data.vwap !== prevData.vwap)) {
+          setFlash(true);
+          if (flashTimeout.current) clearTimeout(flashTimeout.current);
+          // Remove class after animation duration
+          flashTimeout.current = setTimeout(() => setFlash(false), 600);
+        } else if (data && !prevData) {
+          // Flash on initial load
+          setFlash(true);
+          flashTimeout.current = setTimeout(() => setFlash(false), 600);
+        }
+      }, [data, prevData]);
+
+      return (
+        <div className={`bg-panel rounded-xl border ${flash ? 'border-accent' : 'border-[#333333]'} p-5 transition-colors duration-[150ms] ${flash ? 'animate-flash-update' : ''}`}>
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-xl font-bold tracking-tight text-white">{ticker}</h2>
+            {data ? (
+              <span className="flex h-2 w-2 relative">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-accent opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-accent"></span>
+              </span>
+            ) : (
+              <span className="h-2 w-2 rounded-full bg-slate-700"></span>
+            )}
+          </div>
+          
+          <div className="grid grid-cols-2 gap-y-6 gap-x-4">
+            <div className="flex flex-col">
+              <span className="text-[10px] text-textMuted uppercase font-semibold tracking-widest mb-1.5">SMA</span>
+              <span className="font-mono text-[17px] leading-none">{data?.sma ? data.sma.toFixed(2) : '---'}</span>
+            </div>
+            <div className="flex flex-col">
+              <span className="text-[10px] text-textMuted uppercase font-semibold tracking-widest mb-1.5">VWAP</span>
+              <span className="font-mono text-[17px] leading-none">{data?.vwap ? data.vwap.toFixed(2) : '---'}</span>
+            </div>
+            <div className="flex flex-col col-span-2 pt-4 border-t border-[#222222]">
+              <span className="text-[10px] text-textMuted uppercase font-semibold tracking-widest mb-1.5">Total Volume</span>
+              <span className="font-mono text-2xl font-medium text-accent leading-none">
+                {data?.volume ? data.volume.toLocaleString() : '---'}
+              </span>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    const Dashboard = () => {
+      const [connected, setConnected] = useState(false);
+      const [metrics, setMetrics] = useState({});
+      const [logs, setLogs] = useState([]);
+      const wsRef = useRef(null);
+      const logsEndRef = useRef(null);
+
+      useEffect(() => {
+        let isCanceled = false;
+
+        const connect = () => {
+          wsRef.current = new WebSocket('ws://localhost:8765');
+          
+          wsRef.current.onopen = () => {
+             if (isCanceled) return;
+             setConnected(true);
+             addLog({ type: 'System', message: 'Connection established to ws://localhost:8765' });
+          };
+          
+          wsRef.current.onclose = () => {
+             if (isCanceled) return;
+             setConnected(false);
+             addLog({ type: 'System', message: 'Engine Offline. Connection closed.' });
+          };
+          
+          wsRef.current.onmessage = (event) => {
+             if (isCanceled) return;
+             try {
+               const parsed = JSON.parse(event.data);
+               if (parsed.type === "Live Signal" && parsed.metrics) {
+                 setMetrics(prev => ({
+                   ...prev,
+                   [parsed.ticker]: parsed.metrics
+                 }));
+                 addLog(parsed);
+               }
+             } catch (err) {
+               console.error("Parse error", err);
+             }
+          };
+        };
+        
+        connect();
+        
+        return () => {
+          isCanceled = true;
+          if(wsRef.current) wsRef.current.close();
+        }
+      }, []);
+
+      const addLog = (logObj) => {
+        setLogs(prevLogs => {
+          const newLogs = [...prevLogs, { id: performance.now() + Math.random(), ...logObj }];
+          return newLogs.slice(-50); // Keep last 50 logs
+        });
+      };
+
+      // Auto-scroll logic safely
+      useEffect(() => {
+        if (logsEndRef.current) {
+          logsEndRef.current.scrollIntoView({ behavior: "smooth" });
+        }
+      }, [logs]);
+
+      return (
+        <div className="flex flex-col h-full max-w-[1600px] w-full mx-auto px-6 pt-8 pb-0">
+          
+          {/* Dashboard Header */}
+          <header className="flex justify-between items-end mb-8 shrink-0">
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight text-white mb-1.5 flex items-center gap-3">
+                StreamTrade Engine
+              </h1>
+              <p className="text-sm font-medium text-textMuted tracking-wide">ALGORITHMIC TRADING DASHBOARD</p>
+            </div>
+            
+            {/* Status Indicator */}
+            <div className="flex items-center space-x-2.5 bg-[#161616] px-3.5 py-1.5 rounded-md border border-[#2a2a2a] shadow-sm">
+              <div className={`w-2 h-2 rounded-full ${connected ? 'bg-accent shadow-[0_0_8px_rgba(0,255,136,0.8)] animate-pulse' : 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]'}`}></div>
+              <span className={`text-[11px] font-bold tracking-widest ${connected ? 'text-accent' : 'text-red-500'}`}>
+                {connected ? 'LIVE' : 'OFFLINE'}
+              </span>
+            </div>
+          </header>
+
+          {/* Ticker Grid - Scrollable area */}
+          <div className="flex-grow overflow-y-auto no-scrollbar shrink">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-4 pb-6">
+              {TICKERS.map(ticker => (
+                <TickerCard key={ticker} ticker={ticker} data={metrics[ticker]} />
+              ))}
+            </div>
+          </div>
+
+          {/* Terminal Feed - Anchored at bottom */}
+          <div className="h-44 bg-black/80 rounded-t-xl border border-b-0 border-[#222222] p-4 text-xs font-mono overflow-hidden flex flex-col shrink-0 relative backdrop-blur-sm shadow-[0_-10px_40px_rgba(0,0,0,0.5)]">
+             <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[#222] to-transparent opacity-50"></div>
+             
+             <div className="mb-3 text-[#555] uppercase font-bold tracking-widest text-[9px] flex items-center shrink-0">
+               <span className="mr-2 text-accent">&gt;</span> LIVE JSON STREAM // WEBSOCKET FEED
+             </div>
+             
+             <div className="overflow-y-auto terminal-scroll flex-grow space-y-1">
+               {logs.map((log) => (
+                 <div key={log.id} className="whitespace-pre-wrap opacity-60 hover:opacity-100 transition-opacity flex">
+                   {log.type === 'System' ? (
+                     <span className="text-yellow-500/80">[{log.type}] {log.message}</span>
+                   ) : (
+                     <span className="text-slate-400">
+                       <span className="text-cyan-400 font-semibold w-16 inline-block">[{log.ticker}]</span>
+                       <span className="text-slate-500"> {JSON.stringify(log.metrics)}</span>
+                     </span>
+                   )}
+                 </div>
+               ))}
+               <div ref={logsEndRef} className="h-1" />
+             </div>
+          </div>
+
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<Dashboard />);
+  </script>
+</body>
+</html>
