@@ -45,3 +45,5 @@ Zero-Latency Feel: Uses WebSockets instead of HTTP polling for instant data upda
 Fault Tolerance: Implements "poison pills" for graceful process shutdown.
 
 Memory Efficient: Uses fixed-size deques to prevent memory leaks during long-running sessions.
+
+Developed as a deep dive into Python's multiprocessing capabilities and real-time systems.
